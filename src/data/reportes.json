@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1001,
+    "description": "Large pothole at the corner, dangerous for bicycles.",
+    "location": { "latitude": -33.45, "longitude": -70.64 },
+    "photoUri": "mock_uri_1001",
+    "status": "Under Review",
+    "timestamp": "2025-10-15T10:00:00Z",
+    "userId": "admin"
+  },
+  {
+    "id": 1002,
+    "description": "Deep crack next to a crosswalk.",
+    "location": { "latitude": -33.46, "longitude": -70.65 },
+    "photoUri": "mock_uri_1002",
+    "status": "Repaired",
+    "timestamp": "2025-10-10T15:30:00Z",
+    "userId": "anon_1"
+  }
+]
