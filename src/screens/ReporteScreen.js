@@ -1,33 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import * as Location from 'expo-location'; 
 import * as ImagePicker from 'expo-image-picker'; 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 
-// Importación de las Clases AOO/DOO
-import LocalDataService from '../services/LocalDataService'; // Controlador de Persistencia (Patrón Creador)
+// Importación del servicio de persistencia (Controlador de Persistencia)
+import FirestoreService from '../services/FirestoreService'; 
 
-// Función de Interacción (Patrón Controlador de Interfaz)
+// El Patrón Controlador de Interfaz: Llama al Servicio (Controlador de Persistencia)
 const ReporteScreen = () => {
-    const [description, setDescription] = useState('');
+    // Atributos del ReporteHoyos capturados en el frontend
+    const [description, setDescription] = useState('test');
     const [photoUri, setPhotoUri] = useState(null);
     const [location, setLocation] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [totalReports, setTotalReports] = useState(0); 
-
-    // Carga inicial del total de reportes desde el mock
-    useEffect(() => {
-        setTotalReports(LocalDataService.obtenerTodosLosReportes().length);
-    }, []);
-
+    
     // Lógica para obtener ubicación GPS
     const handleGetLocation = async () => {
         setLoading(true);
         try {
             let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') { Alert.alert('Permiso Denegado', 'Necesitamos permiso de ubicación.'); return; }
-            let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+            if (status !== 'granted') { Alert.alert('Permiso Denegado', 'Necesitamos permiso de ubicación para reportar el hoyo.'); return; }
+            let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
             setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         } catch (error) {
             Alert.alert('Error GPS', 'No se pudo obtener la ubicación. Asegúrate de tener el GPS encendido.');
@@ -37,10 +32,14 @@ const ReporteScreen = () => {
     };
 
     // Lógica para capturar foto (usando la cámara) y obtener ubicación automáticamente
+
+    // const onChangeText = (e) => {
+    //     console.log("description: ", description)
+    //     setDescription(e.value)
+    // }
     const handleCapturePhoto = async () => {
         let { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') { Alert.alert('Permiso Denegado', 'Necesitamos acceso a la cámara.'); return; }
-
+        if (status !== 'granted') { Alert.alert('Permiso Denegado', 'Necesitamos acceso a la cámara para adjuntar la foto.'); return; }
         let result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 0.5 });
         if (!result.canceled) { 
             setPhotoUri(result.assets[0].uri);
@@ -48,26 +47,23 @@ const ReporteScreen = () => {
             handleGetLocation();
         }
     };
-
-    // Patrón Controlador: Recibe el evento y delega la persistencia
+    
+    // Patrón Controlador: Recibe el evento de la interfaz y delega la persistencia
     const handleSubmit = async () => {
         const nuevoReporteData = { description, location, photoUri };
         
         setLoading(true);
         try {
-            // DELEGACIÓN AL SERVICIO LOCAL (Patrón Controlador delegando al Creador)
-            const success = await LocalDataService.crearReporte(nuevoReporteData);
+            // DELEGACIÓN AL SERVICIO DE FIRESTORE (Controlador delegando al Creador de Documentos)
+            await FirestoreService.crearReporte(nuevoReporteData);
 
-            if (success) {
-                // Notifica y limpia el formulario
-                setTotalReports(LocalDataService.obtenerTodosLosReportes().length);
-                Alert.alert("Reporte Exitoso", `¡Gracias! El hoyo ha sido registrado. Total: ${LocalDataService.obtenerTodosLosReportes().length}`);
-                setDescription('');
-                setPhotoUri(null);
-                setLocation(null);
-            }
+            // Limpieza de formulario después de éxito
+            Alert.alert("Éxito", "¡Hoyo reportado! Se ha guardado en la base de datos.");
+            setDescription('');
+            setPhotoUri(null);
+            setLocation(null);
         } catch (error) {
-            Alert.alert("Error al Enviar", error.message); // Muestra el error de validación del Experto
+            Alert.alert("Error al Enviar", error.message || "Ocurrió un error desconocido al guardar el reporte.");
         } finally {
             setLoading(false);
         }
@@ -79,7 +75,7 @@ const ReporteScreen = () => {
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.container}>
                 <Text style={styles.title}>Reporte Ciudadano de Hoyo</Text>
-                <Text style={styles.subtitle}>Reportes Registrados: {totalReports}</Text>
+                <Text style={styles.subtitle}>¡Tu reporte se guardará en Firestore!</Text>
 
                 {!photoUri ? (
                     // Vista inicial: Solo ícono de cámara en el centro
@@ -135,8 +131,8 @@ const ReporteScreen = () => {
                                 multiline
                                 numberOfLines={4}
                                 maxLength={250}
-                                value={description}
                                 onChangeText={setDescription}
+                                value={description}
                                 placeholder="Detalla la severidad y peligrosidad del daño vial..."
                                 placeholderTextColor="#999"
                             />
