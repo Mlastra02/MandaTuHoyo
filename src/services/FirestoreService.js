@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, signInAnonymously } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, collection, addDoc, Timestamp, setLogLevel } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import ReporteHoyos from '../models/ReporteHoyos'; 
 
 // === CONFIGURACIÓN DE TU PROYECTO REAL "MandaTuHoyo" ===
@@ -16,7 +17,7 @@ const FALLBACK_FIREBASE_CONFIG = {
 };
 // =======================================================
 
-let db, auth;
+let db, auth, storage;
 
 // 1. Inicialización de Firebase
 const initializeFirebase = async () => {
@@ -32,6 +33,7 @@ const initializeFirebase = async () => {
 
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
+        storage = getStorage(app);
         
         // 🛑 Solución al ERROR (auth/configuration-not-found) y WARNING (AsyncStorage)
         // Usar initializeAuth con getReactNativePersistence para manejar sesiones en móvil
@@ -61,6 +63,43 @@ class FirestoreService {
     COLLECTION_NAME = 'reportes'; 
     APP_ID_CANVAS = 'MandaTuHoyoApp-Dev'; // ID ficticio para la ruta pública
 
+    /**
+     * Sube una imagen al bucket de Firebase Storage y retorna la URL pública
+     * @param {string} photoUri - URI local de la foto del dispositivo
+     * @param {string} userId - ID del usuario para organizar las fotos
+     * @returns {Promise<string>} - URL pública de descarga de la imagen
+     */
+    async subirImagenAStorage(photoUri, userId) {
+        if (!storage) {
+            throw new Error("Firebase Storage no está inicializado.");
+        }
+
+        try {
+            // Convertir URI local a Blob para React Native
+            const response = await fetch(photoUri);
+            const blob = await response.blob();
+
+            // Crear referencia única en Storage: reportes/{userId}/{timestamp}.jpg
+            const timestamp = Date.now();
+            const filename = `${timestamp}.jpg`;
+            const storageRef = ref(storage, `reportes/${userId}/${filename}`);
+
+            // Subir imagen al bucket
+            console.log("📤 Subiendo imagen a Firebase Storage...");
+            await uploadBytes(storageRef, blob);
+
+            // Obtener URL pública de descarga
+            const downloadURL = await getDownloadURL(storageRef);
+            console.log("✅ Imagen subida exitosamente:", downloadURL);
+
+            return downloadURL;
+
+        } catch (error) {
+            console.error("Error al subir imagen a Storage:", error);
+            throw new Error("No se pudo subir la imagen al servidor.");
+        }
+    }
+
     // Patrón CREADOR: Crea una nueva instancia de Reporte en la DB
     async crearReporte(reporteData) {
         if (!db || !auth || !auth.currentUser) {
@@ -83,6 +122,14 @@ class FirestoreService {
             throw new Error(`Validación Fallida: ${error}`);
         }
         
+        // === SUBIR IMAGEN A FIREBASE STORAGE ===
+        let photoURL;
+        try {
+            photoURL = await this.subirImagenAStorage(nuevoReporte.photoUri, userId);
+        } catch (error) {
+            throw new Error(`Error al subir la imagen: ${error.message}`);
+        }
+        
         // === PREPARACIÓN FINAL DEL DOCUMENTO ===
         const documento = {
             description: nuevoReporte.description,
@@ -90,7 +137,7 @@ class FirestoreService {
                 latitude: nuevoReporte.location.latitude,
                 longitude: nuevoReporte.location.longitude,
             },
-            photoUri: nuevoReporte.photoUri,
+            photoURL: photoURL, // URL pública de Storage en lugar de URI local
             status: nuevoReporte.status,
             timestamp: Timestamp.now(), // Firestore Timestamp
             userId: userId,
