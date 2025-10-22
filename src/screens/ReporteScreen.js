@@ -11,7 +11,7 @@ import FirestoreService from '../services/FirestoreService';
 // El Patrón Controlador de Interfaz: Llama al Servicio (Controlador de Persistencia)
 const ReporteScreen = () => {
     // Atributos del ReporteHoyos capturados en el frontend
-    const [description, setDescription] = useState('test');
+    const [description, setDescription] = useState('');
     const [photoUri, setPhotoUri] = useState(null);
     const [location, setLocation] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     // Botón de enviar
     submitButton: {
         flexDirection: 'row',
-        backgroundColor: '#dc3545',
+        backgroundColor: '#28a745',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
